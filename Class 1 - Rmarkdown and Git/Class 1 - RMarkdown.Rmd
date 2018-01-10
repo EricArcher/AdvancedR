@@ -1,0 +1,166 @@
+---
+title: "R Markdown"
+output: pdf_document
+---
+
+**Tutorial**: [http://rmarkdown.rstudio.com/index.html](http://rmarkdown.rstudio.com/index.html)  
+**Cheatsheet**: [http://www.rstudio.com/wp-content/uploads/2016/03/rmarkdown-cheatsheet-2.0.pdf](http://www.rstudio.com/wp-content/uploads/2016/03/rmarkdown-cheatsheet-2.0.pdf)  
+**Reference Guide**: [https://www.rstudio.com/wp-content/uploads/2015/03/rmarkdown-reference.pdf](https://www.rstudio.com/wp-content/uploads/2015/03/rmarkdown-reference.pdf)
+
+***
+
+### Code Chunks
+
+To create a simple code chunk, you can use:
+
+* keyboard shortcuts
+     +  Windows: CTL+ALT+i
+     +  Mac: Cmd+Option+i
+* Insert from toolbar
+* type in by hand  
+
+This chunk executes and shows the command:
+```{r}
+z <- 1
+```
+
+The code in this chunk is not visible, but the result is:
+```{r, echo = FALSE}
+z <- 5
+print(z)
+```
+
+The code and result are visible from this chunk:
+```{r, echo = TRUE}
+print(z)
+```
+
+Neither the code nor result is visible from this chunk, but the code is still run:
+```{r, echo = TRUE, include = FALSE}
+x <- rnorm(100, 10, 2)
+y <- rnorm(100, 20, 4)
+print(x)
+# Hello!!!!
+```
+
+The plot above shows that this code and the code above was run.
+```{r, echo = FALSE}
+plot(x, y)
+# Hello #2!!!!
+```
+
+This code is visible, but is never run:
+```{r, echo = TRUE, eval = FALSE}
+z <- 250
+print(z)
+```
+
+We can see that `z` has the same value as when first set:
+```{r}
+print(z)
+```
+
+The comment character can be changed (or eliminated), and a console prompt shown:
+```{r, echo = TRUE, comment = "", prompt = TRUE}
+a <- 4
+b <- 8
+# Here is the result
+a + b ^ 2
+```
+
+Defaults can be changed by setting options to `knitr::opts_chunk$set`:
+```{r}
+knitr::opts_chunk$set(comment = "*", echo = FALSE)
+```
+
+```{r}
+# Hello there!!
+print(5 * 6)
+```
+
+
+If you are creating a computationally-intensive document, you should cache the results of your chunks:
+```{r}
+knitr::opts_chunk$set(cache = TRUE)
+```
+
+When chunks are cached, it can be good to name them:
+```{r random_numbers}
+x <- runif(1e5)
+y <- mean(x)
+cat(y)
+```
+
+
+Full list of knitr chunk options: [https://yihui.name/knitr/options/#other-chunk-options](https://yihui.name/knitr/options/#other-chunk-options)
+
+***
+
+### Inline Code
+
+Code can be placed inline so that results are embedded directly in the text. For instance, a * b ^ 2 = `r a * b ^ 2`. Multiple steps can be done in chunks, then results embedded inline:
+
+```{r}
+p <- 0.6
+odds.p <- p / (1 - p)
+log.odds.p <- log(odds.p)
+```
+For p = `r p`, the odds(p) = `r odds.p`, and the log-odds(p) = `r round(log.odds.p, 3)`.
+
+***
+
+### Markdown Formatting Syntax
+
+This is a sentence. There is one space following this sentence. The third sentence ends up here.
+
+This is another sentence. If I follow this sentence with two spaces, the third sentence will be a new paragraph.  Like this.
+
+Text can be *italics* or **bold** or ***italics-bold***.
+
+Text can have^superscripts^ and~subscripts~.
+
+See cheatsheet and reference guide for other formatting syntax.
+
+***
+
+### Tables
+
+You can use the vertical separators (i.e., pipe, "|") and horizontal separator (i.e., dash, "-") to create tables. It doesn't have to be neatly aligned as in the examples:
+
+Header 1 | Header 2
+-|-
+Row1, Col1 | Row1, Col2
+Row2, Col1 | Row2, Col2
+
+Here are example default tables for a `data.frame` using `knitr`, `xtable`, and `pander`:
+```{r}
+df <- mtcars[1:5, ]
+library(knitr)
+kable(df, caption = "From knitr")
+```
+
+```{r, results = "asis"}
+library(xtable)
+print(xtable(df, caption = "From xtable"), comment = F)
+```
+
+```{r}
+library(pander)
+pander(df, caption = "From pander")
+```
+
+***
+
+### Output Formats
+
+See: [http://rmarkdown.rstudio.com/lesson-9.html](http://rmarkdown.rstudio.com/lesson-9.html)
+
+***
+
+### Notebooks
+
+[http://rmarkdown.rstudio.com/r_notebooks.html](http://rmarkdown.rstudio.com/r_notebooks.html)
+
+* Change output format to `html_notebook`.
+* When previewed, will create special `.nb.html` file that has controls for hiding code.
+* Only one line at a time is sent to console and output from notebook chunks appear beneath the chunk. 

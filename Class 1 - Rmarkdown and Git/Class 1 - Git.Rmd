@@ -1,0 +1,146 @@
+---
+title: "Git/GitHub"
+output:
+  pdf_document: default
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(comment = "", echo = TRUE, cache = TRUE)
+```
+
+Git Book: [https://git-scm.com/book/en/v2](https://git-scm.com/book/en/v2)  
+Reproducible Research Workshop: [http://www.geo.uzh.ch/microsite/reproducible_research/post/rr-rstudio-git](http://www.geo.uzh.ch/microsite/reproducible_research/post/rr-rstudio-git)  
+Wickham: [http://r-pkgs.had.co.nz/git.html](http://r-pkgs.had.co.nz/git.html)
+
+***
+
+## Git Basics
+[https://git-scm.com/book/en/v2/Getting-Started-Git-Basics](https://git-scm.com/book/en/v2/Getting-Started-Git-Basics)
+
+* Git stores snapshots of current files (changed files are updated, unchanged files are not).
+* Data is only added
+* File states
+    + Committed: Data stored in repository
+    + Modified: Changes have been made, but not committed
+    + Staged: Modified files that are to be committed
+* File locations
+    + Working directory (checked out files)
+    + Staging area (staged fixes)
+    + Repository (committed)
+* Workflow
+    1. Modify files
+    2. Stage changes to be committed
+    3. Commit changes
+
+## Local Git setup
+
+Configure Git
+
+```{}
+git config --global user.name 'yourGitHubUsername'
+git config --global user.email 'name@provider.com'
+```
+
+***
+
+### Create a local project and make first commit
+
+1. Create new R project in a new folder (check "Create Git repository"")
+2. Create new R Markdown document in new project and save it.
+3. Stage document by "adding" it.
+4. Write commit message and commit document to repository.
+
+### Modify the document
+
+5. Add a line to the document and save - note that it shows up with "M" in the Git tab for "modified".
+6. Stage the document and commit again.
+
+### Modify the document again
+
+7. Add another line and repeat steps 5 and 6 to commit this modification
+
+### Revert to previous commit
+
+8. Select the commit that you want to revert to and copy the SHA hash
+9. Open a terminal or shell window in this directory
+10. Issue the command: `git reset --hard <SHA hash>`
+
+## Branching
+[https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging](https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging)
+
+Create a branch
+```{}
+git branch newbranch
+```
+
+Switch to branch
+```{}
+git checkout newbranch
+```
+
+Create and switch
+```{}
+git checkout -B secondbranch
+```
+
+Merge branch into master
+```{}
+git checkout master
+git merge newbranch
+```
+
+Delete branch
+```{}
+git branch -d newbranch
+```
+
+
+***
+
+## GitHub
+
+## Add a local repository to GitHub
+
+1. Copy the URL of the github repository to the clipboard
+2. In a terminal window in the folder of the current local repository, set the new remote repository:
+```{}
+$ git remote add origin <remote repository URL>
+```
+3. Verify the new remote URL
+```{}
+git remote -v
+```
+4. Push the changes in the local repository to GitHub
+```{}
+git push -u origin master
+```
+
+## Push commits to GitHub
+
+5. Make a change in the R Markdown document, save it, stage it, and commit it.
+6. Push change up to GitHub
+
+***
+
+## Create local repository/project from GitHub
+
+Same as above, but a local repository first needs to be initialized. First create a folder and then create an RStudio project in it. Then on the command line, initialize the local repository.
+```{}
+git init
+```
+Close and re-open the project.
+
+## Add a user to a GitHub repo
+
+1. Modify
+2. Stage
+3. Commit
+4. Pull
+5. Push
+
+***
+
+## Forking
+
+* Copy of another repository
+* Merges with parent repository are made via a 'pull request'
