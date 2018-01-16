@@ -1,0 +1,76 @@
+---
+title: "Packages"
+output: pdf_document
+---
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(comment = "", echo = TRUE)
+```
+
+Wickham: [http://r-pkgs.had.co.nz/](http://r-pkgs.had.co.nz/)  
+Developing Packages with RStudio: [https://support.rstudio.com/hc/en-us/articles/200486488-Developing-Packages-with-RStudio](https://support.rstudio.com/hc/en-us/articles/200486488-Developing-Packages-with-RStudio)  
+Writing an R Package From Scratch: [https://hilaryparker.com/2014/04/29/writing-an-r-package-from-scratch](https://hilaryparker.com/2014/04/29/writing-an-r-package-from-scratch) 
+
+***
+
+Before you begin, make sure the `devtools`,`roxygen2` packages are installed. 
+
+## Directory structure
+
+Create a new directory for your package (e.g., `myPackage`). In that directory, you will need at a minimum the following directories:
+
+`myPackage/R`: a folder for R functions, with one function per file  
+`myPackage/man`: a folder for R help files
+
+In the same folder, create a text file for the package metadata, called `DESCRIPTION`, that has the following lines:
+
+```{}
+Package: myPackage
+Title: An Example Package
+Version: 0.1
+Authors@R: person("Eric", "Archer", email = "eric.archer@noaa.gov", role = c("aut", "cre"))
+Description: This is a test package to demonstrate package creation. This is the metadata DESCRIPTION file. The main folders are `R` and `man`
+Depends: R (>= 3.1.0)
+License: GPL
+LazyData: true
+```
+
+## Functions and documentation
+
+In your `myPackage/R` folder, create a new script file that will contain a single function. It is often good to name the file the same as the function:
+
+__myPackage/R/smrzVector.R__
+```{}
+smrzVector <- function(x) {
+  num.na <- sum(is.na(x))
+  mn <- mean(x, na.rm = TRUE)
+  md <- median(x, na.rm = TRUE)
+  vr <- var(x, na.rm = TRUE)
+  c(NAs = num.na, mean = mn, median = md, variance = vr)
+}
+```
+
+The next step is to document your function using `roxygen` tags:
+
+```{}
+#' @title Summarize A Vector
+#' @description Produce standard summary measures for a numeric vector.
+#' 
+#' @param x a vector of numbers
+#' 
+#' @return a vector of summary values
+#' @export
+
+smrzVector <- function(x) {
+  num.na <- sum(is.na(x))
+  mn <- mean(x, na.rm = TRUE)
+  md <- median(x, na.rm = TRUE)
+  vr <- var(x, na.rm = TRUE)
+  c(NAs = num.na, mean = mn, median = md, variance = vr)
+}
+```
+
+To parse the tags and create the documentation file, use the `devtools` function:
+```{}
+document()
+```
+
