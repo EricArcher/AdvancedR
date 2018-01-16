@@ -16,10 +16,7 @@ Before you begin, make sure the `devtools`,`roxygen2` packages are installed.
 
 ## Directory structure
 
-Create a new directory for your package (e.g., `myPackage`). In that directory, you will need at a minimum the following directories:
-
-`myPackage/R`: a folder for R functions, with one function per file  
-`myPackage/man`: a folder for R help files
+Create a new directory for your package (e.g., `myPackage`). In that directory, you will need to also create a directory for your R functions, called `myPackage/R`. In this directory, each file will contain the code defining a function along with its documentation.
 
 In the same folder, create a text file for the package metadata, called `DESCRIPTION`, that has the following lines:
 
@@ -34,7 +31,7 @@ License: GPL
 LazyData: true
 ```
 
-A shortcut for this that also creates an associated R project and initializes a repository is `devtools::create(path)`.  
+A shortcut for this process that also creates an associated R project and initializes a repository is `devtools::create(path)`.  
 
 ## Functions and documentation
 
