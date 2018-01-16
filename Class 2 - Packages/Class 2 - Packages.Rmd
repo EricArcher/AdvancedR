@@ -34,6 +34,8 @@ License: GPL
 LazyData: true
 ```
 
+A shortcut for this that also creates an associated R project and initializes a repository is `devtools::create(path)`.  
+
 ## Functions and documentation
 
 In your `myPackage/R` folder, create a new script file that will contain a single function. It is often good to name the file the same as the function:
