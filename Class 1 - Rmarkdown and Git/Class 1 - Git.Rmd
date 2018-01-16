@@ -45,7 +45,9 @@ git config --global user.email 'name@provider.com'
 
 ### Create a local project and make first commit
 
-1. Create new R project in a new folder (check "Create Git repository"")
+1. Create new R project in a new folder
+    +  if using New Project|Create Project|New Directory, check "Create Git repository
+    +  or create folder, create standard project in Existing Directory, then from the terminal, use `git init`
 2. Create new R Markdown document in new project and save it.
 3. Stage document by "adding" it.
 4. Write commit message and commit document to repository.
