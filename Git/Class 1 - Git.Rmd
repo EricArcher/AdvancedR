@@ -130,7 +130,18 @@ Same as above, but a local repository first needs to be initialized. First creat
 ```{}
 git init
 ```
-Close and re-open the project.
+Close and re-open the project.  
+
+Associate the remote repository as the origin of the local repository.
+```{}
+$ git remote add origin <remote repository URL>
+```
+
+Now pull the contents of the GitHub repository to the local repository.
+```{}
+$ git pull 
+```
+
 
 ## Add a user to a GitHub repo
 
