@@ -1,0 +1,117 @@
+---
+title: "S3 and S4 Classes"
+output: pdf_document
+---
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  comment = "", 
+  echo = TRUE,
+  fig.align = "left"
+)
+```
+
+Wickham: [http://adv-r.had.co.nz/OO-essentials.html](http://adv-r.had.co.nz/OO-essentials.html)
+
+
+Object oriented programming is based on the idea that data can be encapsulated in a structure that is known to the system to have certain properties. This structure is called a `class`. Classes can have a hierarchical nature in that they can be formed from inheriting properties from other classes. Because classes have known properties, functions with generic sounding names can be written to have different behavior depending on the class. These functions are refered to as `methods`. Common examples in R are `print()`, `plot()`, `summary()`.
+
+***
+
+## S3
+
+S3 methods are very simple in definition and use. They are simply functions that are attached to `generic` functions to specify a `class` of object they are written for. When called they are chosen through a process called, "method dispatch". Here's an example with `plot`:
+
+```{r}
+# Plotting numbers
+x <- sample(1:10, 320, replace = TRUE)
+typeof(x)
+plot(x)
+
+# Plotting factors
+y <- factor(x)
+typeof(y)
+plot(y)
+```
+
+The first plot uses a function called `plot.default()`, while the second uses `plot.factor()`. These are both based on a default generic function, `plot`. A generic function is defined by generating a call to `UseMethod()`.
+
+```{r}
+plot
+```
+
+You can view all of the defined methods for a generic with `methods()`:
+```{r}
+methods("plot")
+```
+
+You can also do the reverse and list generic functions for a particular class with `methods(class = "<class>")`:
+```{r}
+methods(class = "factor")
+```
+
+S3 methods are defined by first defining the generic using `UseMethod`, then defining a set of class-specific methods as well as a default. Here is a generic to create a summary:
+```{r}
+smrz <- function(x, ...) UseMethod("smrz")
+smrz
+str(smrz)
+```
+
+Here's a method for a `factor` vector:
+```{r}
+smrz.factor <- function(x) {
+  freq <- table(x)
+  prop <- freq / sum(freq)
+  cbind(freq = freq, prop = prop)
+}
+
+smrz(y)
+```
+
+Let's use the same one for a `logical` vector:
+```{r}
+smrz.logical <- function(x) smrz.factor(as.factor(x))
+
+lg <- sample(c(T, F), 250, replace = T)
+smrz(lg)
+```
+
+Its good to define a `default` method for classes not explicitly defined:
+```{r}
+smrz.default <- function(x) cat("Unknown class, can't summarize")
+smrz(1:10)
+```
+
+You can create your own class by adding to the `class` attribute of of an existing class. Most of the time, this is done to `list` objects, but any type of object is game. For example, we can create an object that is the result of a frequency summary:
+```{r}
+smrz.factor <- function(x) {
+  freq <- table(x)
+  prop <- freq / sum(freq)
+  result <- cbind(freq = freq, prop = prop)
+  class(result) <- c(class(result), "factorSummary")
+  result
+}
+```
+
+Now we can create another method for a `factorSummary` object:
+```{r}
+smrz.factorSummary <- function(x) {
+  n = sum(x[, "freq"]) # Number of values
+  H = -sum(x[, "prop"] * log(x[, "prop"])) # Shannon diversity index
+  c(n = n, H = H)
+}
+
+# create a summary of a factor
+y.smry <- smrz(y)
+str(y.smry)
+class(y.smry)
+
+# summarize the summary
+y.smry.smry <- smrz(y.smry)
+y.smry.smry
+```
+
+## S4
+
+S4 methods and objects are more rigorously defined. In particular, S4 classes are formally defined objects with specific `slots` that can be set to have default values on creation. S4 objects also use the `@` operator to access those slots. However, because they are so explicitly defined, it is more common to create accessor functions that get and set data, rather than have users use `@`.
+
+As an example we'll create an S4 class to contain data from a CTD cast:
