@@ -1,9 +1,0 @@
-Package: myPackage
-Title: An Example Package
-Version: 0.1
-Authors@R: person("Eric", "Archer", email = "eric.archer@noaa.gov", role = c("aut", "cre"))
-Description: This is a test package to demonstrate package creation. This is the metadata DESCRIPTION file. The main folders are `R` and `man`
-Depends: R (>= 3.1.0)
-License: GPL
-LazyData: true
-RoxygenNote: 6.0.1
