@@ -68,8 +68,61 @@ smrzVector <- function(x) {
 }
 ```
 
-To parse the tags and create the documentation file, use the `devtools` function:
+To parse the tags and create the .Rd documentation file, use the `devtools` function `document()`. A list of .Rd tags can be found in [https://cran.r-project.org/doc/manuals/R-exts.html#Writing-R-documentation-files](https://cran.r-project.org/doc/manuals/R-exts.html#Writing-R-documentation-files). A list of `roxygen2` documentation tags can be found in `?rd_roclet`.
+
+Add examples to your documentation as a way of providing some unit testing. The examples should be self-contained, not take too long to run, and should be somewhat self explanatory in what they do and the expected result is:
 ```{}
-document()
+#' @title Summarize A Vector
+#' @description Produce standard summary measures for a numeric vector.
+#' 
+#' @param x a vector of numbers
+#' 
+#' @return a vector of summary values
+#' 
+#' @example
+#' x <- runif(100)
+#' smrzVector(x)
+#'
+#' @export
+
+smrzVector <- function(x) {
+  num.na <- sum(is.na(x))
+  mn <- mean(x, na.rm = TRUE)
+  md <- median(x, na.rm = TRUE)
+  vr <- var(x, na.rm = TRUE)
+  c(NAs = num.na, mean = mn, median = md, variance = vr)
+}
 ```
 
+Text in the documentation file can be formatted to provide italics, bold, show code, or provide links to other documentation. The latter is achieved with the `\link[pkg]{function}` command. This is often wrapped in `\code{\link[pkg]{function}}`.
+
+
+## Dependencies
+
+Packages are rarely completely standalone and will often have dependencies to other packages. You should never use `library()` or `require()` to load a package in a function that is part of your package. These dependencies get listed in the `DESCRIPTION` file under `Imports`, `Suggests`, or sometimes `Depends`. For a good overview, read Wickham's descriptions of [Dependencies](http://r-pkgs.had.co.nz/description.html#dependencies) and [Namespaces](http://r-pkgs.had.co.nz/namespace.html#namespace). In brief, use `Imports` for packages that your code requires. Use `Suggests` for packages that small, rarely used pieces of your code use. Use `Depends` for packages that absolutely must be installed and loaded for your code to make sense - for example, if your package extends the utility of another package.
+
+
+## Building Packages
+[https://support.rstudio.com/hc/en-us/articles/200486518-Customizing-Package-Build-Options](https://support.rstudio.com/hc/en-us/articles/200486518-Customizing-Package-Build-Options)
+
+```{}
+R CMD check
+```
+Performs diagnostic check of package structure and files
+
+```{}
+R CMD build
+```
+Builds a package from sources
+
+```{}
+R CMD INSTALL
+```
+Installs a package to a library
+
+
+## Submitting a package to CRAN
+
+1) Make sure it passes all checks.
+2) Run it through [http://win-builder.r-project.org/upload.aspx](http://win-builder.r-project.org/upload.aspx) using R-devel.
+3) Submit to [https://cran.r-project.org/submit.html](https://cran.r-project.org/submit.html)
