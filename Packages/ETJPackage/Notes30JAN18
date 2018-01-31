@@ -1,0 +1,65 @@
+Steps for package development
+!)Check (checks to make sure everything is working), 2)build (compiles everything), 3)install (puts compiled version in library)
+Build package on command line.
+
+R CMD check
+R CMD build
+R CMD install --help
+
+In R Studio can use the Build tab instead.  If you click on Build tab and click
+on Check.
+
+Received warning on license info because I had notes written on the DESCRIPTION
+line under license:  What license is it under? GPL-2 or GPL-3 most common for
+public - see writing R extension on CRAN...see licensing section - Fixed to say
+just GPL - 2 for now.
+
+
+Roxygen is used eventually for the help command for certain functions.
+
+More tab in Build and Document, updates Documentation
+
+Can click More, Build Source Package and submit Package via Email.  Can also in
+console type
+
+
+When you want something to not run, but be under @examples...use:
+#'\dontrun{
+#'# can't use with characters
+#'smry(letters)}
+
+Also, use vignette("roxygen2") in console for other tags and Introduction to
+roxygen2 (scroll to Documenting Functions)
+
+
+Want to upload page for installing package using
+https://win-builder.r-project.org/ using R-develop...do Build, More, Build
+Source Package (when selecting file on website, go to where the package was
+written -see Build window)
+
+You'll have to resubmit after corrections are made, then need to
+change version number under DESCRIPTION file.
+
+Classifying functions:  Reading, Manipulation/Formatting, Anlaysis, and
+Visualizations
+
+
+Coding Style:  Hadley's R Packaging
+
+Naming: avoid dots like my.func...can use underscores, but more common to
+use lower then uppercase...eg., addTwoNumbers
+
+Spacing: operaters should always have a space between them...x <- 4 + 5
+or x <- mean(x, y, z) or x <- df[1, 2] or
+myFunc <- function(x, y, z){
+  if(x == 1){
+
+  }
+
+}
+
+
+
+IF USING OTHER PEOPLE'S FUNCITONS IN YOUR PACKAGE:
+
+
