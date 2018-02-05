@@ -6,7 +6,8 @@ output: pdf_document
 knitr::opts_chunk$set(
   comment = "", 
   echo = TRUE,
-  fig.align = "left"
+  fig.align = "left",
+  error = TRUE
 )
 ```
 
@@ -81,7 +82,7 @@ smrz.default <- function(x) cat("Unknown class, can't summarize")
 smrz(1:10)
 ```
 
-You can create your own class by adding to the `class` attribute of of an existing class. Most of the time, this is done to `list` objects, but any type of object is game. For example, we can create an object that is the result of a frequency summary:
+You can create your own class by setting or adding to the `class` attribute of of an existing class. It is usually good to add to the class, because this will allow your new class to "inherit" features of the parent class. Functions designed to work on the parent class will continue to work on yours. Most of the time, S3 classes are inherited from `list` objects, but any type of object is game. For example, we can create an object that is the result of a frequency summary:
 ```{r}
 smrz.factor <- function(x) {
   freq <- table(x)
@@ -109,9 +110,185 @@ class(y.smry)
 y.smry.smry <- smrz(y.smry)
 y.smry.smry
 ```
+***
 
 ## S4
 
-S4 methods and objects are more rigorously defined. In particular, S4 classes are formally defined objects with specific `slots` that can be set to have default values on creation. S4 objects also use the `@` operator to access those slots. However, because they are so explicitly defined, it is more common to create accessor functions that get and set data, rather than have users use `@`.
+S4 methods and objects are more rigorously defined. In particular, S4 classes are formally defined objects with specific `slots` that can be set to have default values on creation. S4 objects use the `@` operator to access those slots. However, because they are so explicitly defined, it is better to create accessor functions that get and set data, rather than have users use `@`.
 
-As an example we'll create an S4 class to contain data from a CTD cast:
+As an example we'll create an S4 class to contain data about a CTD station. This is a simple object that will have three slots: date, operator, and position.
+
+To create an S4 class, you use the `setClass()` function. You have to supply a name for the class (`Class` argument), and name and define the `slots` in the class. For example, our CTD station class can be defined as:
+
+```{r}
+setClass(
+  Class = "ctdStation",
+  slots = c(
+    date = "character",
+    operator = "character",
+    position = "numeric"
+  )
+)
+```
+
+To create an object in this class, we can use the `new()` function:
+
+```{r}
+st1 <- new("ctdStation", date = "01/05/2018", operator = "MKR", position = c(32.97, -117.39))
+st1
+```
+
+Data is retrieved from slots in the object using either the `@` symbol (which is similar to `$`):
+```{r}
+st1@date
+```
+
+...or the `slot()` function (which is similar to `[[]]`):
+```{r}
+slot(st1, "operator")
+```
+
+### Constructor
+Instead of using `new()`, it is usually better to create a "constructor" function for your S4 class. This often is just the name of the class. In the constructor, you should do validation checks. 
+```{r}
+ctdStation <- function(date, operator, position) {
+  # check that operator is 2-3 characters long:
+  if(!nchar(operator) %in% 2:3) {
+    stop("operator must be 2 or 3 characters")
+  }
+  # convert operator to uppercase
+  operator <- toupper(operator)
+  new(
+    "ctdStation", 
+    date = date, 
+    operator = operator, 
+    position = position
+  )
+}
+
+ctdStation("04/23/2017", "eric", c(32.5, -117.3))
+ctdStation("04/23/2017", "eia", c(32.5, -117.3))
+```
+
+### Validity checks
+You can also create a function to check the validity of an object (in case it isn't created with your constructor). Use `setValidity()` to return either TRUE if the object is good, or FALSE if it is not. Optionally, `setValidity` can also return a character string that describes what is wrong:
+
+```{r}
+setValidity(
+  Class = "ctdStation",
+  method = function(object) {
+    good.length <- nchar(object@operator) %in% 2:3
+    is.upper <- toupper(object@operator) == object@operator
+    good.length & is.upper
+  }
+)
+
+# This would create an invalid object, so it won't be created
+st2 <- new("ctdStation", date = "01/05/2018", operator = "eric", position = c(32.97, -117.39))
+st2
+
+# while this one is good
+st3 <- new("ctdStation", date = "01/05/2018", operator = "EIA", position = c(32.97, -117.39))
+```
+
+### Methods
+To create a method for an S4 object, use the `setMethod()` function. For example, we want to create a function that displays our CTD class. For S4 objects, the generic for this is `show`. We will create a method for `ctdStation`:
+
+```{r}
+# The default `show` for ctdStation
+st3
+
+# Define a new method:
+setMethod(
+  f = "show",
+  signature = "ctdStation",
+  definition = function(object){
+    cat("CTD Station", "\n")
+    cat("-----------", "\n")
+    cat("Date: ", object@date, "\n", sep = "")
+    cat("Operator: ", object@operator, "\n", sep = "")
+    cat("Position: ", object@position[1], ", ", object@position[2], "\n", sep = "")
+  })
+
+# Our new `show` method:
+st3
+```
+
+We can create new generics with `setGeneric()`. These come in handy when creating "accessor" functions that are used to get and set data in slots in your class. These functions are usually the names of the slots:
+```{r}
+setGeneric(
+  name = "operator",
+  def = function(x, ...) standardGeneric("operator")
+)
+```
+
+Now we can create a method to extract the `@operator` slot:
+```{r}
+setMethod(
+  f = "operator",
+  signature = "ctdStation",
+  function(x, ...) x@operator
+)
+
+operator(st3)
+```
+
+To create a method to set the `@operator` slot, we create a similar, but new generic and method:
+```{r}
+setGeneric(
+  name = "operator<-",
+  def = function(x, value) standardGeneric("operator<-")
+)
+
+setMethod(
+  f = "operator<-",
+  signature = "ctdStation",
+  function(x, value) {
+    value <- toupper(value)
+    x@operator <- value
+    validObject(x) # check to make sure value doesn't invalidate the object
+    x
+  }
+)
+
+operator(st3) <- "myname"
+
+operator(st3) <- "abc"
+st3
+
+```
+
+### Inheritance
+
+Classes can inherit from one another. This means that they contain the structures of their component classes and methods that work on one will work on the other. For example, we can make a new class that records the actual CTD data from a cast at a given station. Our new class will be based on the `ctdStation` class, but have a slot for a data.frame:
+
+```{r}
+setClass(
+  "ctdData",
+  slots = c(cast = "data.frame"),
+  contains = "ctdStation"
+)
+
+ctd1 <- new(
+  "ctdData",
+  date = "5/29/2017",
+  operator = "EIA",
+  position = c(39, -118),
+  cast = data.frame(
+    depth = c(1, 10, 100),
+    temp = c(16, 12, 5),
+    sal = c(33.2, 35, 37.9)
+  )
+)
+
+# Station info
+ctd1
+
+# Cast data
+ctd1@cast
+
+# The `operator` method still works:
+operator(ctd1) <- "XXX"
+ctd1
+```
+
