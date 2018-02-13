@@ -1,0 +1,550 @@
+---
+title: "Performance"
+author: "Eric Archer"
+date: "2/12/2018"
+output: pdf_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  comment = "", 
+  echo = TRUE,
+  fig.align = "left",
+  error = TRUE
+)
+```
+
+## Performance
+In writing code, you are constantly balancing several things. The concept of "performance" could be related to accuracy, speed, stability, readability, or extensibility. In truth, all of these are important, but I would argue that accuracy (getting the right result) comes first. If the code does not deliver what is expected, then it is of no use regardless of how fast it executes or how easy it is to read. 
+
+Accuracy is often a direct result of readability. If you write code that is easy to follow and read, the flow of your logic will be obvious and tend to be clear - most importantly, to you!
+
+Even when you've written some code that is performing as expected, you may want to spend some time getting it to run faster. The very first thing you need to do is understand where the bottlenecks are. Depending on how you've structured your code, there are multiple things that could be slower than expected and can be sped up with some restructuring.
+
+Note that everything takes some time, so nothing is truly instantaneous. Recognizing that means that you will only be able to optimize but so much. At some point you will be spending more time re-programming trying to eke out a handful of milliseconds than it would take for all of the runs you could possibly imagine. Stop. You've done enough.
+
+## Profiling
+But, if you're just getting started in this process, the first step you should do is profile your code. The core R functions for this are `Rprof` and `summaryRprof`. The former is used to start and stop profiling of code that has executed, and the latter summarizes the results of that profiling. In the example below, we'll profile some code that does some permutation of CTD data to produce a bootstrap mean of the temperature at each station.
+
+```{r}
+# we're doing 10 replicates and want to return the result in an array
+boot.mean <- sapply(1:10, function(i) {
+  # read the data in
+  df <- read.csv("ctd.csv", stringsAsFactors = FALSE)
+  # loop over each value of station
+  sapply(unique(df$station), function(st) {
+    # identify the rows for this station and the first depth level
+    i <- which(df$station == st & df$depth == 1)
+    # take a random sample of these rows (with replacement)
+    i <- sample(i, length(i), replace = TRUE)
+    # return the mean of temperature for these rows
+    mean(df$temp[i])
+  })
+})
+ci <- apply(boot.mean, 1, quantile, probs = c(0.025, 0.975))
+ci
+```
+
+Let's first see what parts of this are taking the most time and how much:
+```{r}
+# Start profiling
+Rprof()
+
+# Run code
+boot.mean <- sapply(1:10, function(i) {
+  df <- read.csv("ctd.csv", stringsAsFactors = FALSE)
+  sapply(unique(df$station), function(st) {
+    i <- which(df$station == st & df$depth == 1)
+    i <- sample(i, length(i), replace = TRUE)
+    mean(df$temp[i])
+  })
+})
+ci <- apply(boot.mean, 1, quantile, probs = c(0.025, 0.975))
+
+# Stop profiling
+Rprof(NULL)
+
+# Examine profile summary
+summaryRprof()
+```
+
+We can see that a majority of the time was taken by reading the file ("scan", "read.table", "read.csv"). This makes sense because it is doing that every iteration of the loop in the `sapply` function. Let's be smarter and change the code so that file reading is happening only once:
+
+```{r}
+# Start profiling
+Rprof()
+
+# Run code
+df <- read.csv("ctd.csv", stringsAsFactors = FALSE)
+boot.mean <- sapply(1:10, function(i) {
+  sapply(unique(df$station), function(st) {
+    i <- which(df$station == st & df$depth == 1)
+    i <- sample(i, length(i), replace = TRUE)
+    mean(df$temp[i])
+  })
+})
+ci <- apply(boot.mean, 1, quantile, probs = c(0.025, 0.975))
+
+# Stop profiling
+Rprof(NULL)
+
+# Examine profile summary
+summaryRprof()
+```
+
+Notice that our total time decreased, but file reading is still taking the most time. Since this is on its own line, we can't really make this any faster, but lets profile just the nested `sapply` lines:
+
+```{r}
+df <- read.csv("ctd.csv", stringsAsFactors = FALSE)
+
+# Start profiling
+Rprof()
+
+# Run code
+boot.mean <- sapply(1:10, function(i) {
+  sapply(unique(df$station), function(st) {
+    i <- which(df$station == st & df$depth == 1)
+    i <- sample(i, length(i), replace = TRUE)
+    mean(df$temp[i])
+  })
+})
+ci <- apply(boot.mean, 1, quantile, probs = c(0.025, 0.975))
+
+# Stop profiling
+Rprof(NULL)
+
+# Examine profile summary
+summaryRprof()
+```
+
+Now it seems like `which` is taking most of the time, so lets focus on that. If we remember that we don't have to use which. We can just index with the base logical vector. Since we still need to randomly sample temperature with replacement, we'll extract that column and do the sampling on it:
+
+```{r}
+df <- read.csv("ctd.csv", stringsAsFactors = FALSE)
+
+# Start profiling
+Rprof()
+
+# Run code
+boot.mean <- sapply(1:10, function(i) {
+  sapply(unique(df$station), function(st) {
+    temp <- df$temp[df$station == st & df$depth == 1]
+    temp <- sample(temp, length(temp), replace = TRUE)
+    mean(temp)
+  })
+})
+ci <- apply(boot.mean, 1, quantile, probs = c(0.025, 0.975))
+
+# Stop profiling
+Rprof(NULL)
+
+# Examine profile summary
+summaryRprof()
+```
+
+We can now see that we're spending a non-negligble amount of time in the logical operators, `==` and `&`. Since we're always interested in the first depth class (`depth == 1`), let's extract that early on:
+
+```{r}
+df <- read.csv("ctd.csv", stringsAsFactors = FALSE)
+
+# Start profiling
+Rprof()
+
+# Run code
+df.1 <- df[df$depth == 1, ]
+boot.mean <- sapply(1:10, function(i) {
+  sapply(unique(df.1$station), function(st) {
+    temp <- df.1$temp[df.1$station == st]
+    temp <- sample(temp, length(temp), replace = TRUE)
+    mean(temp)
+  })
+})
+ci <- apply(boot.mean, 1, quantile, probs = c(0.025, 0.975))
+
+# Stop profiling
+Rprof(NULL)
+
+# Examine profile summary
+summaryRprof()
+```
+
+This is considerably faster than before. Let's see where (if) there are other bottlenecks now by increasing the number of replicates from 10 to 1000. Also, because the total time is getting smaller, let's decrease the sampling interval to 0.01.
+
+```{r}
+df <- read.csv("ctd.csv", stringsAsFactors = FALSE)
+
+# Start profiling
+Rprof(interval = 0.01)
+
+# Run code
+df.1 <- df[df$depth == 1, ]
+boot.mean <- sapply(1:1000, function(i) {
+  sapply(unique(df.1$station), function(st) {
+    temp <- df.1$temp[df.1$station == st]
+    temp <- sample(temp, length(temp), replace = TRUE)
+    mean(temp)
+  })
+})
+ci <- apply(boot.mean, 1, quantile, probs = c(0.025, 0.975))
+
+# Stop profiling
+Rprof(NULL)
+
+# Examine profile summary
+summaryRprof()
+```
+
+Here we see that we're spending most of our recoverable time in sample. It isn't easy to make that or simplify that step as we have to do this random sampling. The next items down have to do with indexing the data frame (`[.data.frame`). Lets try to handle that by doing some extraction ahead of time and working with vectors rather than data.frames:
+```{r}
+df <- read.csv("ctd.csv", stringsAsFactors = FALSE)
+
+# Start profiling
+Rprof(interval = 0.01)
+
+# Run code
+df.1 <- df[df$depth == 1, ]
+temp <- df.1$temp
+station <- df.1$station
+
+boot.mean <- sapply(1:1000, function(i) {
+  sapply(unique(station), function(st) {
+    st.temp <- temp[station == st]
+    st.temp <- sample(st.temp, length(st.temp), replace = TRUE)
+    mean(st.temp)
+  })
+})
+ci <- apply(boot.mean, 1, quantile, probs = c(0.025, 0.975))
+
+# Stop profiling
+Rprof(NULL)
+
+# Examine profile summary
+summaryRprof()
+```
+
+That made a noticeable improvement. It also highlights something else we're doing repeatedly - using `unique` to get the unique station names. Lets do that earlier.
+```{r}
+df <- read.csv("ctd.csv", stringsAsFactors = FALSE)
+
+# Start profiling
+Rprof(interval = 0.01)
+
+# Run code
+df.1 <- df[df$depth == 1, ]
+temp <- df.1$temp
+station <- df.1$station
+st.names <- unique(station)
+
+boot.mean <- sapply(1:1000, function(i) {
+  sapply(st.names, function(st) {
+    st.temp <- temp[station == st]
+    st.temp <- sample(st.temp, length(st.temp), replace = TRUE)
+    mean(st.temp)
+  })
+})
+ci <- apply(boot.mean, 1, quantile, probs = c(0.025, 0.975))
+
+# Stop profiling
+Rprof(NULL)
+
+# Examine profile summary
+summaryRprof()
+```
+
+### Looping
+
+That produced a minor, but useful improvement in speed. As we look through the rest of timings, we can see that there aren't a lot more savings to get. Most of the time is being taken by `sapply`, which we need in order to do the looping. We can use another member of the `apply` family to do grouped iterations: `tapply`:
+```{r}
+df <- read.csv("ctd.csv", stringsAsFactors = FALSE)
+
+# Start profiling
+Rprof(interval = 0.01)
+
+# Run code
+df.1 <- df[df$depth == 1, ]
+temp <- df.1$temp
+station <- df.1$station
+st.names <- unique(station)
+
+boot.mean <- sapply(1:1000, function(i) {
+  tapply(temp, station, function(st.temp) {
+    st.temp <- sample(st.temp, length(st.temp), replace = TRUE)
+    mean(st.temp)
+  })
+})
+ci <- apply(boot.mean, 1, quantile, probs = c(0.025, 0.975))
+
+# Stop profiling
+Rprof(NULL)
+
+# Examine profile summary
+summaryRprof()
+```
+
+Although we're still spending time in the `tapply` and `sapply`, we've cut down the total time considerably. One thing we can check is if there is an effect of the order of the loops. Currently, we are calculating the mean for all stations for each replicate. Lets switch the order so that we are calculating the means of all replicates for each station:
+```{r}
+df <- read.csv("ctd.csv", stringsAsFactors = FALSE)
+
+# Start profiling
+Rprof(interval = 0.01)
+
+# Run code
+df.1 <- df[df$depth == 1, ]
+temp <- df.1$temp
+station <- df.1$station
+st.names <- unique(station)
+
+boot.mean <- tapply(temp, station, function(x) {
+  sapply(1:1000, function(i) {
+    st.temp <- sample(x, length(x), replace = TRUE)
+    mean(st.temp)
+  })
+})
+boot.mean <- do.call(rbind, boot.mean)
+ci <- apply(boot.mean, 1, quantile, probs = c(0.025, 0.975))
+
+# Stop profiling
+Rprof(NULL)
+
+# Examine profile summary
+summaryRprof()
+```
+
+This is slightly faster because we are not doing the tapply 1000 times, which takes some time. It doesn't look like we can do much more. However, there is a more efficient way of looping, although it is not necessarily as compact. Instead of using the interior `sapply` constructs, we can pre-allocate a result vector, and use a `for` loop to fill it:
+```{r}
+df <- read.csv("ctd.csv", stringsAsFactors = FALSE)
+
+# Start profiling
+Rprof(interval = 0.01)
+
+# Run code
+df.1 <- df[df$depth == 1, ]
+temp <- df.1$temp
+station <- df.1$station
+st.names <- unique(station)
+
+# an empty result vector
+boot.vec <- vector(length = 1000)
+
+boot.mean <- tapply(temp, station, function(x) {
+  for(i in 1:length(boot.vec)) {
+    st.temp <- sample(x, length(x), replace = TRUE)
+    boot.vec[i] <- mean(st.temp)
+  }
+  boot.vec
+})
+boot.mean <- do.call(rbind, boot.mean)
+ci <- apply(boot.mean, 1, quantile, probs = c(0.025, 0.975))
+
+# Stop profiling
+Rprof(NULL)
+
+# Examine profile summary
+summaryRprof()
+```
+
+Well, that was faster overall. We can now extend the concept and try the same thing for the tapply loop. This time, we have to create a matrix to hold the results.
+```{r}
+df <- read.csv("ctd.csv", stringsAsFactors = FALSE)
+
+# Start profiling
+Rprof(interval = 0.01)
+
+# Run code
+df.1 <- df[df$depth == 1, ]
+temp <- df.1$temp
+station <- df.1$station
+st.names <- unique(station)
+
+# an empty result vector
+boot.mean <- matrix(nrow = length(st.names), ncol = 1000)
+rownames(boot.mean) <- st.names
+
+for(st in st.names) {
+  x <- temp[station == st]
+  num.temp <- length(x)
+  for(i in 1:ncol(boot.mean)) {
+    st.temp <- sample(x, num.temp, replace = TRUE)
+    boot.mean[st, i] <- mean(st.temp)
+  }
+}
+ci <- apply(boot.mean, 1, quantile, probs = c(0.025, 0.975))
+
+# Stop profiling
+Rprof(NULL)
+
+# Examine profile summary
+summaryRprof()
+```
+
+That pre-allocation speeds us up even more. The only other things we can do is use the function `sample.int` directly rather than through `sample`, and use the internal function `.Internal(mean())` rather than the generic `mean`:
+```{r}
+df <- read.csv("ctd.csv", stringsAsFactors = FALSE)
+
+# Start profiling
+Rprof(interval = 0.01)
+
+# Run code
+df.1 <- df[df$depth == 1, ]
+temp <- df.1$temp
+station <- df.1$station
+st.names <- unique(station)
+
+# an empty result vector
+boot.mean <- matrix(nrow = length(st.names), ncol = 1000)
+rownames(boot.mean) <- st.names
+
+for(st in st.names) {
+  x <- temp[station == st]
+  num.temp <- length(x)
+  for(i in 1:ncol(boot.mean)) {
+    j <- sample.int(1:num.temp, num.temp, replace = TRUE)
+    boot.mean[st, i] <- .Internal(mean(x[j]))
+  }
+}
+ci <- apply(boot.mean, 1, quantile, probs = c(0.025, 0.975))
+
+# Stop profiling
+Rprof(NULL)
+
+# Examine profile summary
+summaryRprof()
+```
+Using `.Internal` functions can be tricky because the code base of internal functions can change over time. Also, CRAN will not permit packages using `.Internal` to be submitted.
+
+
+### Benchmarking
+We've seen incremental achievements in our code, but it would be good to know how much better one version of code is than another. There are a couple of ways to do this. The first is to use `system.time` to record the CPU time required for a set of expressions to execute. For our comparison, let's make three functions that represent our code at different stages and see how long each actually takes:
+```{r}
+# the first one
+bootMean.1 <- function(fname, nrep) {
+  boot.mean <- sapply(1:nrep, function(i) {
+    df <- read.csv(fname, stringsAsFactors = FALSE)
+    sapply(unique(df$station), function(st) {
+      i <- which(df$station == st & df$depth == 1)
+      i <- sample(i, length(i), replace = TRUE)
+      mean(df$temp[i])
+    })
+  })
+  apply(boot.mean, 1, quantile, probs = c(0.025, 0.975))
+}
+
+
+# halfway through optimizing, using two sapply functions
+bootMean.2 <- function(fname, nrep) {
+  df <- read.csv(fname, stringsAsFactors = FALSE)
+  boot.mean <- sapply(1:nrep, function(i) {
+    sapply(unique(df$station), function(st) {
+      i <- which(df$station == st & df$depth == 1)
+      i <- sample(i, length(i), replace = TRUE)
+      mean(df$temp[i])
+    })
+  })
+  apply(boot.mean, 1, quantile, probs = c(0.025, 0.975))
+}
+
+# fully optimized, using for-loops
+bootMean.3 <- function(fname, nrep) {
+  df <- read.csv(fname, stringsAsFactors = FALSE)
+  df <- df[df$depth == 1, ]
+  temp <- df$temp
+  station <- df$station
+  st.names <- unique(station)
+
+  boot.mean <- matrix(nrow = length(st.names), ncol = nrep)
+  rownames(boot.mean) <- st.names
+  
+  for(st in st.names) {
+    x <- temp[station == st]
+    num.temp <- length(x)
+    for(i in 1:ncol(boot.mean)) {
+      j <- sample.int(1:num.temp, num.temp, replace = TRUE)
+      boot.mean[st, i] <- .Internal(mean(x[j]))
+    }
+  }
+  apply(boot.mean, 1, quantile, probs = c(0.025, 0.975))
+}
+
+# CPU time for each function for 10 replicates
+system.time(bootMean.1("ctd.csv", 10))
+system.time(bootMean.2("ctd.csv", 10))
+system.time(bootMean.3("ctd.csv", 10))
+```
+
+It looks like we were able to make it about 10 times faster. Another useful way to do this is to use the `microbenchmark` package, which will execute each expression a number of times and give a distribution of the run times.
+```{r}
+library(microbenchmark)
+microbenchmark(
+  bootMean.1 = bootMean.1("ctd.csv", 10),
+  bootMean.2 = bootMean.2("ctd.csv", 10),
+  bootMean.3 = bootMean.3("ctd.csv", 10),
+  times = 10
+)
+```
+
+## Parallel computing
+Once we have code that is optimized as much as possible in R, if we need it to execute faster, we can explore distributing the processing among several CPUs if we have access to a computer that has multiple cores. This is only good if we have processes that are independent, such that if one is running on one core, it does not need to transfer information to a process on another core. This is good for simulations, permutations, bootstrapping, and other similar loop-based operations. There is a bit of overhead in setting up the monitoring of the parallel processes, which takes some time, so make sure that this will be made up for in the time it takes to run processes in parallel rather than serially.
+
+We'll use the `tapply` version of our example and structure the code to spread the replicates for a station among 2 cores. We'll use the `parallel` package.
+```{r}
+library(parallel)
+
+bootMean.tapply <- function(fname, nrep) {
+  df <- read.csv(fname, stringsAsFactors = FALSE)
+  df <- df[df$depth == 1, ]
+  temp <- df$temp
+  station <- df$station
+  st.names <- unique(station)
+  
+  boot.mean <- tapply(temp, station, function(x) {
+    sapply(1:nrep, function(i) {
+      st.temp <- sample(x, length(x), replace = TRUE)
+      mean(st.temp)
+    })
+  })
+  boot.mean <- do.call(rbind, boot.mean)
+  apply(boot.mean, 1, quantile, probs = c(0.025, 0.975))
+}
+
+bootMean.par <- function(fname, nrep) {
+  df <- read.csv(fname, stringsAsFactors = FALSE)
+  df <- df[df$depth == 1, ]
+  temp <- df$temp
+  station <- df$station
+  st.names <- unique(station)
+  
+  # make 2 clusters
+  cl <- makeCluster(2)
+  
+  boot.mean <- tapply(temp, station, function(x) {
+    clusterExport(cl, "x")
+    parSapply(cl, 1:nrep, function(i) {
+      st.temp <- sample(x, length(x), replace = TRUE)
+      mean(st.temp)
+    })
+  })
+  stopCluster(cl)
+  boot.mean <- do.call(rbind, boot.mean)
+  apply(boot.mean, 1, quantile, probs = c(0.025, 0.975))
+}
+```
+
+Here's the result for 100 replicates:
+```{r}
+system.time(bootMean.tapply("ctd.csv", 100))
+system.time(bootMean.par("ctd.csv", 100))
+```
+
+Here's the result for 1000 replicates:
+```{r}
+system.time(bootMean.tapply("ctd.csv", 1000))
+system.time(bootMean.par("ctd.csv", 1000))
+```
+
+Here's the result for 10,000 replicates:
+```{r}
+system.time(bootMean.tapply("ctd.csv", 10000))
+system.time(bootMean.par("ctd.csv", 10000))
+```
+
+You can see that at 100 replicates, the parallel version takes more time than the non-parallel version. However, as the number of replicates increases, the parallel version gets much faster. You can see that it would be very useful to parallelize code if each replicate was even moderately time-intensive.
