@@ -10,9 +10,17 @@ knitr::opts_chunk$set(
   comment = "", 
   echo = TRUE,
   fig.align = "left",
-  error = TRUE
+  error = TRUE, 
+  cache = TRUE
 )
 ```
+
+## Resources
+"Optimizing code": [http://adv-r.had.co.nz/Profiling.html]  
+"A Guide to Speeding Up R Code for Busy People": [http://www.noamross.net/blog/2013/4/25/faster-talk.html]  
+"Vectorization in R: Why?": [http://www.noamross.net/blog/2014/4/16/vectorization-in-r--why.html]
+
+***
 
 ## Performance
 In writing code, you are constantly balancing several things. The concept of "performance" could be related to accuracy, speed, stability, readability, or extensibility. In truth, all of these are important, but I would argue that accuracy (getting the right result) comes first. If the code does not deliver what is expected, then it is of no use regardless of how fast it executes or how easy it is to read. 
@@ -485,10 +493,15 @@ microbenchmark(
 ## Parallel computing
 Once we have code that is optimized as much as possible in R, if we need it to execute faster, we can explore distributing the processing among several CPUs if we have access to a computer that has multiple cores. This is only good if we have processes that are independent, such that if one is running on one core, it does not need to transfer information to a process on another core. This is good for simulations, permutations, bootstrapping, and other similar loop-based operations. There is a bit of overhead in setting up the monitoring of the parallel processes, which takes some time, so make sure that this will be made up for in the time it takes to run processes in parallel rather than serially.
 
-We'll use the `tapply` version of our example and structure the code to spread the replicates for a station among 2 cores. We'll use the `parallel` package.
+The easiest way to get into parallel programming is to use the `parallel` package. We should first find out how many cores we have:
 ```{r}
 library(parallel)
+detectCores()
+```
 
+The way my MacBook is configured, it will report ```{r} detectCores()``` cores. However, that is not totally true. It actually has half that number as each physical CPU is virtually doubled. While I can allocate that many cores for independent work, it wouldn't leave any space on my CPU for overhead processes. Therefore, I like to use no more than ```{r} (detectCores() / 2) - 1``` cores when I set up intensive processes.  
+Below, we'll use the `tapply` version of our example and structure the code to spread the replicates for a station among 2 cores. 
+```{r}
 bootMean.tapply <- function(fname, nrep) {
   df <- read.csv(fname, stringsAsFactors = FALSE)
   df <- df[df$depth == 1, ]
