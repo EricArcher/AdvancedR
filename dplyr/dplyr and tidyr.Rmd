@@ -1,0 +1,293 @@
+---
+title: "dplyr and tidyr"
+output: html_notebook
+---
+
+### Piping
+
+```{r}
+# method one of doing three steps (sequential)
+x <- runif(100)
+x.q <- quantile(x, c(0.025, 0.975))
+x.q.diff.1 <- diff(x.q)
+
+# method two (nested)
+x.q.diff.2 <- diff(quantile(runif(100), c(0.025, 0.975)))
+```
+
+Piping (magrittr) - %>%
+```{r}
+library(magrittr)
+runif(10)
+
+10 %>% runif()
+
+# no parentheses needed if left side is all that is going into function
+10 %>% runif
+
+# using arguments
+10 %>% runif(100, 200)
+
+# pipe to second argument (must name arguments)
+100 %>% runif(n = 5, max = 200)
+# vs...
+100 %>% runif(5, 200)
+```
+
+pipe version of first example
+```{r}
+q.diff.pipe <- 100 %>% 
+  runif %>% 
+  quantile(c(0.025, 0.975)) %>% 
+  diff
+```
+
+### dplyr
+
+filter and select
+```{r}
+library(tidyverse)
+
+# base R indexing to select males
+#starwars[starwars$gender == "male", ]
+#subset(starwars, gender == "male")
+
+# dplyr way - filter
+filter(starwars, gender == "male")
+
+# pipeline version
+starwars %>%
+  filter(gender == "male" & height > 190)
+
+# "select" columns to return
+select(starwars, name, height, mass, gender)
+select(starwars, height, gender, name, mass)
+
+# extend pipeline above
+starwars %>% 
+  filter(gender == "male" & height > 190) %>% 
+  select(name, height, mass)
+
+# helper functions for select
+
+# select range of columns
+starwars %>% 
+  filter(gender == "male" & height > 190) %>% 
+  select(eye_color:homeworld)
+
+# select columns that start with string
+starwars %>% 
+  filter(gender == "male" & height > 190) %>% 
+  select(starts_with("h"))
+
+# select columns that contain a string
+starwars %>% 
+  filter(gender == "male" & height > 190) %>% 
+  select(contains("color"))
+
+# select columns excluding certain ones
+starwars %>% 
+  filter(gender == "male" & height > 190) %>% 
+  select(-name, -gender, -height)
+
+```
+
+arrange to sort data
+```{r}
+# base R sorting a data.frame
+starwars[order(starwars$species, starwars$height), ]
+
+# arrange
+starwars %>% 
+  arrange(species, desc(height)) %>% 
+  select(name, height, species)
+```
+
+new columns
+```{r}
+sw <- starwars %>% 
+  mutate(
+    height.m = height / 100,
+    bmi = mass / height.m ^ 2
+  )
+
+# takes place of
+# sw <- starwars
+# sw$height.m <- sw$height / 100
+# sw$bmi <- sw$mass / sw$height.m ^ 2
+```
+
+change name of column
+```{r}
+sw <- starwars %>% 
+  rename(handle = "name")
+colnames(starwars)
+colnames(sw)
+```
+
+create new column and drop all others
+```{r}
+sw <- starwars %>% 
+  transmute(
+    name = name,
+    height.m = height / 100,
+    bmi = mass / height.m ^ 2
+  )
+sw
+
+# same as
+sw <- starwars %>% 
+  mutate(
+    height.m = height / 100,
+    bmi = mass / height.m ^ 2
+  ) %>% 
+  select(height.m, bmi)
+sw
+```
+
+complete data set (no missing data)
+```{r}
+# in base R
+#sw.complete <- starwars[complete.cases(starwars), ]
+
+sw.complete <- starwars %>% 
+  select(-(films:starships), -mass) %>% 
+  filter(complete.cases(.))
+
+nrow(starwars)
+nrow(sw.complete)
+sw.complete
+```
+
+removing duplicates
+```{r}
+# what are the observed combinations of gender and species
+starwars %>% 
+  select(gender, species) %>% 
+  distinct() %>% 
+  arrange(species, gender)
+```
+
+select random rows
+```{r}
+# without replacement
+starwars %>% 
+  sample_n(10)
+
+# with replacement
+starwars %>% 
+  sample_n(10, weight = sample(1:10, nrow(.), replace = T))
+```
+
+group_by
+```{r}
+sw <- starwars %>% 
+  group_by(species) %>% 
+  summarize(
+    mean.height = mean(height, na.rm = T), 
+    mean.mass = mean(mass, na.rm = T),
+    bmi.mean = mean.mass / (mean.height / 100) ^ 2
+  )
+sw
+
+sw <- starwars %>% 
+  group_by(species, gender) %>% 
+  summarize(
+    mean.height = mean(height, na.rm = T), 
+    mean.mass = mean(mass, na.rm = T),
+    bmi.mean = mean.mass / (mean.height / 100) ^ 2
+  )
+sw
+
+# same summaries, but with mutate on grouped tibble
+sw <- starwars %>% 
+  group_by(species, gender) %>% 
+  mutate(
+    mean.height = mean(height, na.rm = T), 
+    mean.mass = mean(mass, na.rm = T),
+    bmi.mean = mean.mass / (mean.height / 100) ^ 2
+  )
+sw
+
+# same summaries, but with mutate on grouped tibble
+sw <- starwars %>% 
+  group_by(species, gender) %>% 
+  mutate(
+    mean.height = mean(height, na.rm = T), 
+    mean.mass = mean(mass, na.rm = T),
+    bmi.mean = mean.mass / (mean.height / 100) ^ 2,
+    bmi = mass / (height / 100) ^ 2
+  ) 
+sw
+
+
+# count number of rows in group
+num.sp.gend <- starwars %>% 
+  group_by(species, gender) %>% 
+  summarize(num = n())
+
+# fraction of mass of each character
+fr.mass <- starwars %>% 
+  group_by(species) %>% 
+  mutate(pct.mass = mass / sum(mass, na.rm = TRUE)) %>% 
+  ungroup %>% 
+  select(name, pct.mass)
+```
+
+Joining
+```{r}
+bmi <- starwars %>% 
+  group_by(species) %>% 
+  summarize(bmi = mean(mass / (height / 100) ^ 2, na.rm = TRUE))
+
+num.tall.characters <- starwars %>% 
+  filter(height > 150) %>% 
+  group_by(species) %>% 
+  summarize(num = n()) %>% 
+  rename(spp = "species")
+
+num.tall.characters %>% 
+  left_join(bmi, by = c("spp" = "species"))
+
+final <- starwars %>% 
+  group_by(species) %>% 
+  summarize(bmi = mean(mass / (height / 100) ^ 2, na.rm = TRUE)) %>% 
+  left_join(
+    starwars %>% 
+      filter(height > 150) %>% 
+      group_by(species) %>% 
+      summarize(num = n()) %>% 
+      rename(spp = "species"), 
+    by = c("spp" = "species")
+  )
+
+```
+
+tidyr : gather, spread
+```{r}
+sw <- select(starwars, -(films:starships))
+
+body.colors <- starwars %>% 
+  select(name, contains("color"))
+
+colors.gathered <- body.colors %>% 
+  gather(color_type, color, -name) %>% 
+  arrange(name, color_type, color)
+
+colors.spread <- colors.gathered %>% 
+  spread(color_type, color) %>% 
+  as.data.frame
+```
+
+
+pipeline to ggplot
+```{r}
+starwars %>% 
+  mutate(bmi = mass / (height / 100) ^ 2) %>% 
+  select(name, bmi, species, gender) %>% 
+  filter(complete.cases(.) & species == "Human") %>% 
+  ggplot(aes(gender, bmi)) +
+  geom_violin() +
+  geom_text(aes(label = name), position = "jitter") 
+```
+
