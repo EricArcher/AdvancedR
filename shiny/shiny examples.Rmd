@@ -392,3 +392,70 @@ server <- function(input, output) {
 shinyApp(ui = ui, server = server)
 ```
 
+```{r}
+ui <- fluidPage(
+  sidebarLayout(
+    sidebarPanel(
+      h4("Simulated Data"),
+      sliderInput("n", "Number of samples", 10, 300, 100, 10),
+      sliderInput("intercept", "Intercept", -1, 1, 0, 0.01),
+      sliderInput("slope", "Slope", -1, 1, 0, 0.01),
+      sliderInput("sd", "SD", 0, 1, 0.1, 0.01)
+    ),
+    mainPanel(
+      tabsetPanel(
+        tabPanel(
+          "Plot",
+          wellPanel(
+            plotOutput("plot"),
+            h5("Test fit"),
+            sliderInput("intercept.test", "Intercept", -1, 1, 0, 0.01),
+            sliderInput("slope.test", "Slope", -1, 1, 0, 0.01),
+            h5("Residuals"),
+            verbatimTextOutput("residuals"),
+            h5("Sums of squares"),
+            textOutput("ss")
+          )
+        ),
+        tabPanel("Fit", verbatimTextOutput("smry"))
+      )
+    )
+  )
+)
+
+server <- function(input, output) {
+  line.fit <- reactiveValues(intercept = 0, slope = 0)
+  
+  pts <- reactive({
+    df <- data.frame(x = runif(input$n))
+    df$y <- input$intercept + input$slope * df$x + rnorm(nrow(df), 0, input$sd)
+    pts.lm <- lm(y ~ x, df)
+    line.fit$intercept <- coef(pts.lm)[1]
+    line.fit$slope <- coef(pts.lm)[2]
+    list(df = df, lm = pts.lm)
+  })
+  
+  observeEvent(input$intercept.test, ({ line.fit$intercept <- input$intercept.test }))
+  observeEvent(input$slope.test, ({ line.fit$slope <- input$slope.test }))
+  
+  observe({
+    test.resid <- line.fit$intercept + line.fit$slope * pts()$df$x 
+    output$residuals <- renderPrint({ summary(test.resid) })
+    output$ss <- renderText({ sum((test.resid - pts()$df$y) ^ 2) })
+  })
+  
+  output$plot <- renderPlot({
+    test.resid.y <- line.fit$intercept + line.fit$slope * pts()$df$x
+    plot(pts()$df, ylim = c(-1, 1)) 
+    abline(a = line.fit$intercept, b = line.fit$slope, col = "red", lwd = 2)
+    segments(
+      pts()$df$x, pts()$df$y,
+      pts()$df$x, test.resid.y,
+      col = "blue", lty = "dashed"
+    )
+  })
+  output$smry <- renderPrint({ summary(pts()$lm) })
+}
+
+shinyApp(ui = ui, server = server)
+```
