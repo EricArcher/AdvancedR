@@ -1,0 +1,394 @@
+---
+title: "Shiny"
+author: "Eric Archer"
+date: "3/5/2018"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  comment = "",
+  prompt = TRUE, 
+  fig.align = "left"
+)
+
+rm(list = ls())
+library(shiny)
+library(tidyverse)
+```
+
+Shiny tutorial: http://shiny.rstudio.com/tutorial/
+
+The basics
+```{r}
+# setup the HTML user interface
+ui <- fluidPage()
+
+# define a function containing code being executed in UI
+server <- function(input, output) {}
+
+# run the app
+shinyApp(ui = ui, server = server)
+```
+
+
+Simple app
+```{r}
+ui <- fluidPage(
+  numericInput(inputId = "n", "Sample size", value = 25),
+  plotOutput(outputId = "hist")
+)
+
+server <- function(input, output) {
+  output$hist <- renderPlot({
+    hist(rnorm(input$n))
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+Inputs and Outputs
+```{r}
+ui <- fluidPage(
+  numericInput("numInput", "numericInput", 5),
+  textOutput("numOutput"),
+  sliderInput("slInput", "sliderInput", 100, 200, 150),
+  textOutput("slOutput"),
+  checkboxGroupInput("chgrpInput", "checkboxGroupInput", list("a" = 1, "b" = 2, "c" = 3)),
+  textOutput("chgrpOut")
+)
+
+server <- function(input, output) {
+  output$numOutput <- renderText(print(input$numInput))
+  output$slOutput <- renderText(print(input$slInput))
+  output$chgrpOut <- renderText(print(paste(input$chgrpInput, collapse = " / ")))
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+
+Reactivity
+
+render*()
+```{r}
+ui <- fluidPage(
+  sliderInput("n", "Number of samples", 10, 1000, 100, 10),
+  sliderInput("slope", "Slope", -1, 1, 0, 0.1),
+  sliderInput("intercept", "Intercept", -1, 1, 0, 0.1),
+  numericInput("sd", "SD", 0.1, min = 0, step = 0.05),
+  plotOutput("plot"),
+  textOutput("smryTO"),
+  verbatimTextOutput("smryVTO")
+)
+
+server <- function(input, output) {
+  output$plot <- renderPlot({
+    x <- runif(input$n)
+    y <- input$intercept + input$slope * x + rnorm(input$n, 0, input$sd)
+    plot(x, y, ylim = c(-1, 1))
+  })
+  output$smryTO <- renderPrint({ summary(runif(input$n)) })
+  output$smryVTO <- renderPrint({ summary(runif(input$n)) })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+reactive({ code with reactive values that returns object}) : creates a "function" that saves validated reactive values
+```{r}
+ui <- fluidPage(
+  sliderInput("n", "Number of samples", 10, 1000, 100, 10),
+  sliderInput("slope", "Slope", -1, 1, 0, 0.1),
+  sliderInput("intercept", "Intercept", -1, 1, 0, 0.1),
+  numericInput("sd", "SD", 0.1, min = 0, step = 0.05),
+  plotOutput("plot"),
+  h4("x Summary"),
+  verbatimTextOutput("smryX"),
+  h4("y Summary"),
+  verbatimTextOutput("smryY")
+)
+
+server <- function(input, output) {
+  pts <- reactive({
+    x <- runif(input$n)
+    y <- input$intercept + input$slope * x + rnorm(input$n, 0, input$sd)
+    list(x = x, y = y)
+  })
+  
+  output$plot <- renderPlot({
+    plot(pts()$x, pts()$y, ylim = c(-1, 1))
+  })
+  output$smryX <- renderPrint({ summary(pts()$x) })
+  output$smryY <- renderPrint({ summary(pts()$y) })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+
+isolate({ code with reactiveValues that returns object }) : creates a non-reactive value
+```{r}
+ui <- fluidPage(
+  sliderInput("n", "Number of samples", 10, 1000, 100, 10),
+  sliderInput("slope", "Slope", -1, 1, 0, 0.1),
+  sliderInput("intercept", "Intercept", -1, 1, 0, 0.1),
+  numericInput("sd", "SD", 0.1, min = 0, step = 0.05),
+  plotOutput("plot"),
+  h4("x Summary"),
+  verbatimTextOutput("smryX")
+)
+
+server <- function(input, output) {
+  x <- reactive({runif(input$n)})
+  
+  output$plot <- renderPlot({
+    y <- isolate({
+      input$intercept + input$slope * x() + rnorm(length(x()), 0, input$sd)
+    })
+    plot(x(), y, ylim = c(-1, 1))
+  })
+  output$smryX <- renderPrint({ summary(x()) })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+observeEvent(reactiveValues, { code }) : execute code when specified reactive values are changed
+```{r}
+ui <- fluidPage(
+  sliderInput("n", "Number of samples", 10, 1000, 100, 10),
+  sliderInput("slope", "Slope", -1, 1, 0, 0.1),
+  sliderInput("intercept", "Intercept", -1, 1, 0, 0.1),
+  numericInput("sd", "SD", 0.1, min = 0, step = 0.05),
+  plotOutput("plot"),
+  actionButton("estimate", "Estimate regression"),
+  verbatimTextOutput("smry")
+)
+
+server <- function(input, output) {
+  pts <- reactive({
+    x <- runif(input$n)
+    y <- input$intercept + input$slope * x + rnorm(length(x), 0, input$sd)
+    data.frame(x = x, y = y)
+  })
+  
+  output$plot <- renderPlot({ plot(pts(), ylim = c(-1, 1)) })
+  
+  observeEvent(input$estimate, {
+    pt.lm <- lm(y ~ x, pts())
+    output$plot <- renderPlot({
+      plot(pts(), ylim = c(-1, 1)) 
+      abline(coef(pt.lm), color = "red")
+    })
+    output$smry <- renderPrint({ summary(pt.lm) })
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+observe({ code with reactive values }) : executes all code when reactive values are changed. like reactive({}), but does not create an object that can be referenced later.
+```{r}
+ui <- fluidPage(
+  sliderInput("n", "Number of samples", 10, 1000, 100, 10),
+  sliderInput("slope", "Slope", -1, 1, 0, 0.1),
+  sliderInput("intercept", "Intercept", -1, 1, 0, 0.1),
+  numericInput("sd", "SD", 0.1, min = 0, step = 0.05),
+  plotOutput("plot"),
+  verbatimTextOutput("smry")
+)
+
+server <- function(input, output) {
+  pts <- reactive({
+    x <- runif(input$n)
+    y <- input$intercept + input$slope * x + rnorm(length(x), 0, input$sd)
+    data.frame(x = x, y = y)
+  })
+  
+  observe({
+    if(input$n > 500) { # this if statement must be in a reactive function because it has a reactive value
+      output$smry <- renderText({ cat("") })
+      output$plot <- renderPlot({ plot(pts(), ylim = c(-1, 1)) })
+    } else {
+      pt.lm <- lm(y ~ x, pts())
+      output$smry <- renderPrint({ summary(pt.lm) })
+      output$plot <- renderPlot({
+        plot(pts(), ylim = c(-1, 1))
+        abline(coef(pt.lm), color = "red")
+      })
+    }
+  })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+eventReactive(reactive values, { code }) : returns value generated by code when reactive values are changed.
+```{r}
+ui <- fluidPage(
+  sliderInput("n", "Number of samples", 10, 1000, 100, 10),
+  sliderInput("slope", "Slope", -1, 1, 0, 0.1),
+  sliderInput("intercept", "Intercept", -1, 1, 0, 0.1),
+  numericInput("sd", "SD", 0.1, min = 0, step = 0.05),
+  actionButton("go", "Go"),
+  plotOutput("plot"),
+  verbatimTextOutput("smry")
+)
+
+server <- function(input, output) {
+  pts <- eventReactive(input$go, {
+    df = data.frame(x = runif(input$n))
+    df$y <- input$intercept + input$slope * df$x + rnorm(nrow(df), 0, input$sd)
+    list(df = df, lm = lm(y ~ x, df))
+  })
+  
+  output$plot <- renderPlot({
+    plot(pts()$df, ylim = c(-1, 1)) 
+    abline(coef(pts()$lm), color = "red")
+  })
+  output$smry <- renderPrint({ summary(pts()$lm) })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+
+reactiveValues(elements) : create list of elements that are reactive values and can be changed programmatically.
+```{r}
+ui <- fluidPage(
+  sliderInput("n", "Number of samples", 10, 1000, 100, 10),
+  sliderInput("intercept", "Intercept", -1, 1, 0, 0.1),
+  sliderInput("slope", "Slope", -1, 1, 0, 0.1),
+  numericInput("sd", "SD", 0.1, min = 0, step = 0.05),
+  plotOutput("plot"),
+  verbatimTextOutput("smry"),
+  sliderInput("intercept.test", "Test - Intercept", -1, 1, 0, 0.1),
+  sliderInput("slope.test", "Test - Slope", -1, 1, 0, 0.1)
+)
+
+server <- function(input, output) {
+  line.fit <- reactiveValues(intercept = NA, slope = NA)
+  
+  pts <- reactive({
+    df <- data.frame(x = runif(input$n))
+    df$y <- input$intercept + input$slope * df$x + rnorm(nrow(df), 0, input$sd)
+    lm.fit <- lm(y ~ x, df)
+    line.fit$intercept <- coef(lm.fit)[1]
+    line.fit$slope <- coef(lm.fit)[2]
+    list(df = df, lm = lm.fit)
+  })
+  
+  observeEvent(input$intercept.test, ({ line.fit$intercept <- input$intercept.test }))
+  observeEvent(input$slope.test, ({ line.fit$slope <- input$slope.test }))
+  
+  output$plot <- renderPlot({
+    plot(pts()$df, ylim = c(-1, 1)) 
+    abline(a = line.fit$intercept, b = line.fit$slope, color = "red")
+  })
+  output$smry <- renderPrint({ summary(pts()$lm) })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+
+Layout
+```{r}
+ui <- fluidPage(
+  sidebarLayout(
+    sidebarPanel(
+      sliderInput("n", "Number of samples", 10, 1000, 100, 10),
+      sliderInput("intercept", "Intercept", -1, 1, 0, 0.1),
+      sliderInput("slope", "Slope", -1, 1, 0, 0.1),
+      numericInput("sd", "SD", 0.1, min = 0, step = 0.05)
+    ),
+    mainPanel(
+      plotOutput("plot"),
+      verbatimTextOutput("smry"),
+      sliderInput("intercept.test", "Test - Intercept", -1, 1, 0, 0.1),
+      sliderInput("slope.test", "Test - Slope", -1, 1, 0, 0.1)
+    )
+  )
+)
+
+server <- function(input, output) {
+  line.fit <- reactiveValues(intercept = NA, slope = NA)
+  
+  pts <- reactive({
+    df <- data.frame(x = runif(input$n))
+    df$y <- input$intercept + input$slope * df$x + rnorm(nrow(df), 0, input$sd)
+    lm.fit <- lm(y ~ x, df)
+    line.fit$intercept <- coef(lm.fit)[1]
+    line.fit$slope <- coef(lm.fit)[2]
+    list(df = df, lm = lm.fit)
+  })
+  
+  observeEvent(input$intercept.test, ({ line.fit$intercept <- input$intercept.test }))
+  observeEvent(input$slope.test, ({ line.fit$slope <- input$slope.test }))
+  
+  output$plot <- renderPlot({
+    plot(pts()$df, ylim = c(-1, 1)) 
+    abline(a = line.fit$intercept, b = line.fit$slope, color = "red")
+  })
+  output$smry <- renderPrint({ summary(pts()$lm) })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
+
+```{r}
+ui <- fluidPage(
+  sidebarLayout(
+    sidebarPanel(
+      sliderInput("n", "Number of samples", 10, 1000, 100, 10),
+      sliderInput("intercept", "Intercept", -1, 1, 0, 0.1),
+      sliderInput("slope", "Slope", -1, 1, 0, 0.1),
+      numericInput("sd", "SD", 0.1, min = 0, step = 0.05)
+    ),
+    mainPanel(
+      tabsetPanel(
+        tabPanel(
+          "Plot",
+          wellPanel(
+            plotOutput("plot"),
+            sliderInput("intercept.test", "Test - Intercept", -1, 1, 0, 0.1),
+            sliderInput("slope.test", "Test - Slope", -1, 1, 0, 0.1)
+          )
+        ),
+        tabPanel("Fit", verbatimTextOutput("smry"))
+      )
+    )
+  )
+)
+
+server <- function(input, output) {
+  line.fit <- reactiveValues(intercept = NA, slope = NA)
+  
+  pts <- reactive({
+    df <- data.frame(x = runif(input$n))
+    df$y <- input$intercept + input$slope * df$x + rnorm(nrow(df), 0, input$sd)
+    lm.fit <- lm(y ~ x, df)
+    line.fit$intercept <- coef(lm.fit)[1]
+    line.fit$slope <- coef(lm.fit)[2]
+    list(df = df, lm = lm.fit)
+  })
+  
+  observeEvent(input$intercept.test, ({ line.fit$intercept <- input$intercept.test }))
+  observeEvent(input$slope.test, ({ line.fit$slope <- input$slope.test }))
+  
+  output$plot <- renderPlot({
+    plot(pts()$df, ylim = c(-1, 1)) 
+    abline(a = line.fit$intercept, b = line.fit$slope, color = "red")
+  })
+  output$smry <- renderPrint({ summary(pts()$lm) })
+}
+
+shinyApp(ui = ui, server = server)
+```
+
